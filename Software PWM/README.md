@@ -1,28 +1,54 @@
-# Software PWM
-Most microprocessors will have a Timer module, but depending on the device, some may not come with pre-built PWM modules. Instead, you may have to utilize software techniques to synthesize PWM on your own.
+ * Software PWM
+ *
+ *  Created on: Oct 11, 2017
+ *  Last Updated on: Oct 11, 2017
+ *  Author: Brandon Salamone
+ */
 
-## Task
-You need to generate a 1kHz PWM signal with a duty cycle between 0% and 100%. Upon the processor starting up, you should PWM one of the on-board LEDs at a 50% duty cycle. Upon pressing one of the on-board buttons, the duty cycle of the LED should increase by 10%. Once you have reached 100%, your duty cycle should go back to 0% on the next button press. You also need to implement the other LED to light up when the Duty Cycle button is depressed and turns back off when it is let go. This is to help you figure out if the button has triggered multiple interrupts.
+Libraries Used:
+ msp430.h is the only library used in these programs.
 
-### Hints
-You really, really, really, really need to hook up the output of your LED pin to an oscilloscope to make sure that the duty cycle is accurate. Also, since you are going to be doing a lot of initialization, it would be helpful for all persons involved if you created your main function like:
-'''c
-int main(void)
-{
-	WDTCTL = WDTPW | WDTHOLD;	// stop watchdog timer
-	LEDSetup(); // Initialize our LEDS
-	ButtonSetup();  // Initialize our button
-	TimerA0Setup(); // Initialize Timer0
-	TimerA1Setup(); // Initialize Timer1
-	__bis_SR_register(LPM0_bits + GIE);       // Enter LPM0 w/ interrupt
-}
-'''
-This way, each of the steps in initialization can be isolated for easier understanding and debugging.
+Dependencies:
+The msp430.h library does not have any dependencies.
 
+User Interface:
+Each program allows the user to push a button to control the duty cycle and hence the brightness of an LED. On startup, two LEDs will light up.
+One of them is an indicator light to show when the button is pressed. This is to show whether or not the button is properly debounced. The other 
+LED takes in the PWM signal. Initially, the duty cycle is 50%. Upon a button press, the program begins to cycle through a brightness array of 
+integers that will update the duty cycle every time a button is pressed. This means that on the first button press, the duty cycle will go from
+50% to 0%. After that, the program runs through the entire array on consecutive button presses until 100% duty cycle is reached, after which the
+program resets to 0% duty cycle.    
 
-## Extra Work
-### Linear Brightness
-Much like every other things with humans, not everything we interact with we perceive as linear. For senses such as sight or hearing, certain features such as volume or brightness have a logarithmic relationship with our senses. Instead of just incrementing by 10%, try making the brightness appear to change linearly. 
+Common Functionality Among All Processors:
+All processors contain these elements in order to create a software PWM:
+ 1. The watchdog timer is cleared
+ 2. Every program contains a brightness array that allows for logarithmic brightness. The values in the array allow the user to visualize the 
+    incremental changes in brightness as the LED gets progressively brighter
+ 3. The P1DIR and/or PxDIR are set such that two LEDs will be outputs
+ 4. The PxOUT registers, when used, are set such that the resistor associated with the button used in the code will be a pull-up resistor
+ 5. The PxREN, PxIE, PxIES, and PxIFG registers are always set to one of the pins corresponding to a button on each board
+ 6. The Tx0CCTL0 and Tx0CCTL1 registers are always set to CCIE to enable the timer interrupts in every program
+ 7. The Tx0CCR0 registers are always set to 512-1 so that the period of the signals will always be 512
+ 8. The Tx0CCR1 registers are always initialized to 256 to give an initial duty cycle of 50%  
+ 9. All processor programs have a line of code that tells the processor to enter low power mode with interrupt
+ 10. Each program contains three ISRs. The first performs multiple important tasks. First, the indicator light is turned on. Next, the brightness 
+    array code runs. Then, the interrupt edge select is flipped to be high. Once the button is released, the LED is turned off and the interrupt 
+    edge select goes back to low before the cycle starts all over again. The second ISR simply causes an LED to toggle on. Finally, the third 
+    ISR causes an LED to turn off. The combination of these two ISRs helps the PWM to blink at the correct rate. 
 
-### Power Comparison
-Since you are effectively turning the LED off for some period of time, it should follow that the amount of power you are using over time should be less. Using Energy Trace, compare the power consumption of the different duty cycles. What happens if you use the pre-divider in the timer module for the PWM (does it consume less power)?
+Key Differences Between Processors:
+ 1. MSP430FR2311, MSP430FR6989, and MSP430FR5994 all have an extra line of code that disables the default high-impedance mode. The MSP430F5529 and
+    MSP430G2553 processors do not need this line of code. 
+
+ 2. Different Processors have different LED pin assignments. Below the LED pin assignments will be shown for each processor.
+    msp430F5529: P1.0 and P4.7
+    msp430FR2311: P1.0 and P2.0
+    msp430FR5994: P1.0 and P1.1 *
+    msp430FR5989: P1.0 and P9.7
+    msp430G2553: P1.0 and P1.6 *
+    
+    * For these processors, the hexadecimal values pertaining to each pin can be combined into one number, since they have P1 in common.
+      For example in the msp430FR5994 processor it would be: P1DIR = BIT0 | BIT1 = 0x03 
+
+ 3. Unlike the other processors which use Timer A, the MSP430FR2311 processor uses Timer B. This difference causes only slight adjustments to 
+    the code to make it work. 

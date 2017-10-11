@@ -1,0 +1,1 @@
+"./MSP430FR6989_DEBOUNCING.obj" "../lnk_msp430fr6989.cmd" -llibmpu_init.a -llibmath.a -llibc.a 
